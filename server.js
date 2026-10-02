@@ -165,15 +165,24 @@ app.post('/api/generate-questions', auth, async (req, res) => {
   if (material.length < 80) return sendError(res, 400, 'Materi terlalu singkat. Tempel materi yang lebih lengkap.');
   if (material.length > 30000) return sendError(res, 413, 'Materi terlalu panjang. Batas materi adalah 30.000 karakter.');
   try {
-    const response = await fetch('https://api.openai.com/v1/responses', {
+   const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
-      instructions: 'Anda membantu guru SMA/SMK Indonesia membuat soal dalam format JSON hanya dari MATERI SUMBER. KETEPATAN KUNCI ADALAH PRIORITAS UTAMA. Untuk setiap soal pilihan: (1) tentukan jawaban benar berdasarkan materi terlebih dahulu, (2) susun empat opsi dengan tepat satu jawaban benar untuk tipe choice, (3) setelah urutan opsi final ditentukan, hitung ulang answer sebagai indeks 0-based dari opsi final: 0=opsi pertama/A, 1=opsi kedua/B, 2=opsi ketiga/C, 3=opsi keempat/D, (4) cek ulang bahwa opsi pada indeks answer benar-benar menjawab pertanyaan dan cocok dengan exp. Jangan pernah menulis huruf jawaban di answer; gunakan angka indeks. Pastikan exp menerangkan mengapa jawaban itu benar dan tidak bertentangan dengan opsi lain. Hindari pertanyaan ambigu, opsi yang sama-sama benar, dan fakta yang tidak ada di materi. Jika materi tidak cukup untuk membuat soal yang valid, jangan mengarang. Variasikan tipe: choice, multiple, essay. Untuk multiple, answer berupa array indeks benar dan minimal 2; semua jawaban yang dipilih harus benar. Untuk essay, answerText berisi kunci lengkap, rubric berisi konsep wajib/sinonim, options=[] dan answer=null. Kembalikan JSON valid {"questions":[{"type":"choice|multiple|essay","q":"...","options":[],"answer":null,"answerText":"...","rubric":"...","exp":"..."}]}. Buat soal kelas 10 yang jelas, tidak duplikat, dan tidak melebihi jumlah diminta. Sebelum mengirim, audit sekali lagi semua kunci dan pembahasan. Jangan sertakan markdown.',
-        input: 'Mata pelajaran: ' + subject + '\nJumlah soal: ' + count + '\n\nMATERI SUMBER:\n' + material,
-        text: { format: { type: 'json_object' } },
-        max_output_tokens: Math.min(8000, 700 + count * 300)
+        messages: [
+          {
+            role: 'system',
+            content: 'Anda membantu guru SMA/SMK Indonesia membuat soal dalam format JSON hanya dari MATERI SUMBER. KETEPATAN KUNCI ADALAH PRIORITAS UTAMA. Untuk setiap soal pilihan: (1) tentukan jawaban benar berdasarkan materi terlebih dahulu, (2) susun empat opsi dengan tepat satu jawaban benar untuk tipe choice, (3) setelah urutan opsi final ditentukan, hitung ulang answer sebagai indeks 0-based dari opsi final: 0=opsi pertama/A, 1=opsi kedua/B, 2=opsi ketiga/C, 3=opsi keempat/D, (4) cek ulang bahwa opsi pada indeks answer benar-benar menjawab pertanyaan dan cocok dengan exp. Jangan pernah menulis huruf jawaban di answer; gunakan angka indeks. Pastikan exp menerangkan mengapa jawaban itu benar dan tidak bertentangan dengan opsi lain. Hindari pertanyaan ambigu, opsi yang sama-sama benar, dan fakta yang tidak ada di materi. Jika materi tidak cukup untuk membuat soal yang valid, jangan mengarang. Variasikan tipe: choice, multiple, essay. Untuk multiple, answer berupa array indeks benar dan minimal 2; semua jawaban yang dipilih harus benar. Untuk essay, answerText berisi kunci lengkap, rubric berisi konsep wajib/sinonim, options=[] dan answer=null. Kembalikan JSON valid {"questions":[{"type":"choice|multiple|essay","q":"...","options":[],"answer":null,"answerText":"...","rubric":"...","exp":"..."}]}. Buat soal kelas 10 yang jelas, tidak duplikat, dan tidak melebihi jumlah diminta. Sebelum mengirim, audit sekali lagi semua kunci dan pembahasan. Jangan sertakan markdown.'
+          },
+          {
+            role: 'user',
+            content: 'Mata pelajaran: ' + subject + '\nJumlah soal: ' + count + '\n\nMATERI SUMBER:\n' + material
+          }
+        ],
+        response_format: { type: 'json_object' }
+      })
+    });
       })
     });
     const data = await response.json();
