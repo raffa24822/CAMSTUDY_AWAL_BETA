@@ -185,27 +185,40 @@ app.post('/api/generate-questions', auth, async (req, res) => {
     });
       })
     });
-    const data = await response.json();
+ const data = await response.json();
     if (!response.ok) {
       const msg = data && data.error && data.error.message ? data.error.message : 'Penyedia AI tidak dapat membuat soal.';
       console.error('OpenAI API error:', response.status, msg);
-      return sendError(res, response.status === 429 ? 429 : 502, response.status === 429 ? 'Batas penggunaan AI tercapai. Coba lagi nanti.' : 'Layanan AI gagal memproses materi. Periksa konfigurasi API key/model.');
+      return sendError(res, response.status === 429 ? 429 : 502, response.status === 429 ? 'Batas penggunaan AI tercapai. Coba lagi nanti.' : 'Layanan AI mengalami kendala.');
     }
-    const output = (data.output || []).flatMap(item => item.content || []).filter(item => item.type === 'output_text').map(item => item.text).join('\n');
+
+    const output = data.choices && data.choices[0] && data.choices[0].message ? data.choices[0].message.content : '';
     let parsed;
-    try { parsed = JSON.parse(output); } catch (_) { return sendError(res, 502, 'Jawaban AI tidak terbaca sebagai JSON. Silakan coba lagi.'); }
+    try { parsed = JSON.parse(output); } catch (_) { return sendError(res, 502, 'Jawaban AI tidak dapat dibaca.'); }
     if (!parsed || !Array.isArray(parsed.questions)) return sendError(res, 502, 'AI tidak mengembalikan daftar soal.');
+
     const questions = parsed.questions.slice(0, count).map(q => {
       const type = ['choice','multiple','essay'].includes(q.type) ? q.type : 'choice';
-      const options = Array.isArray(q.options) ? q.options.slice(0, 4).map(v => String(v || '').trim().slice(0, 500)) : [];
-      const answer = type === 'multiple' ? (Array.isArray(q.answer) ? q.answer.map(Number).filter(n=>Number.isInteger(n)&&n>=0&&n<=3) : []) : Number(q.answer);
-      return { type, q: String(q.q || '').trim().slice(0,1200), options, answer: type==='essay' ? null : answer,
-        answerText: String(q.answerText || (type==='essay' ? q.answer || '' : '')).trim().slice(0,2500),
-        rubric: String(q.rubric || '').trim().slice(0,2500), exp: String(q.exp || '').trim().slice(0,1500) };
-    }).filter(q => q.q && (q.type==='essay' ? q.answerText.length>0 : q.options.length===4 && q.options.every(Boolean) && (q.type==='multiple' ? q.answer.length>=2 : Number.isInteger(q.answer)&&q.answer>=0&&q.answer<=3)));
-    if (!questions.length) return sendError(res, 502, 'AI tidak menghasilkan soal valid. Coba materi yang lebih lengkap.');
+      const options = Array.isArray(q.options) ? q.options.slice(0, 4).map(v => String(v || '').trim()) : [];
+      const answer = type === 'multiple' ? (Array.isArray(q.answer) ? q.answer.map(Number).filter(n => !isNaN(n)) : []) : (typeof q.answer === 'number' ? q.answer : null);
+      return {
+        type,
+        q: String(q.q || '').trim().slice(0, 1200),
+        options,
+        answer,
+        answerText: String(q.answerText || (type === 'essay' ? q.answer || '' : '')).trim().slice(0, 2000),
+        rubric: String(q.rubric || '').trim().slice(0, 2500),
+        exp: String(q.exp || '').trim().slice(0, 2000)
+      };
+    }).filter(q => q.q && (q.type === 'essay' ? q.answerText.length > 0 : q.options.length === 4 && q.answer !== null));
+
+    if (!questions.length) return sendError(res, 502, 'AI tidak menghasilkan soal valid. Coba materi lain.');
     return res.json({ ok: true, questions });
   } catch (error) {
+    console.error('Gagal menghubungi layanan AI:', error.message);
+    return sendError(res, 500, 'Gagal terhubung ke layanan AI.');
+  }
+});
     console.error('Gagal menghubungi layanan AI:', error.message);
     return sendError(res, 502, 'Tidak dapat menghubungi layanan AI. Periksa koneksi server.');
   }
