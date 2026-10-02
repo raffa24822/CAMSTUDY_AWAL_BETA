@@ -29,7 +29,8 @@ function loadData() {
   } catch (e) {
     console.error('Gagal membaca data file:', e.message);
   }
-  return { banks: [], exambanks: [] };
+  // Data default jika file belum ada/terhapus saat redeploy
+  return { banks: [], exambanks: [], users: [] };
 }
 
 function saveData(data) {
@@ -98,12 +99,11 @@ app.post('/api/generate-questions', auth, async (req, res) => {
   }
 });
 
-// Melayani file statis dari semua folder umum
+// Serve static files
 app.use(express.static(__dirname));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static(path.join(__dirname, 'views')));
 
-// Fungsi pencarian otomatis file HTML
 app.get('*', (req, res) => {
   const possiblePaths = [
     path.join(__dirname, 'index.html'),
@@ -118,14 +118,15 @@ app.get('*', (req, res) => {
     }
   }
 
-  // Jika index.html tidak ketemu, cari file .html apa saja di root
-  const files = fs.readdirSync(__dirname);
-  const htmlFile = files.find(f => f.endsWith('.html'));
-  if (htmlFile) {
-    return res.sendFile(path.join(__dirname, htmlFile));
-  }
+  try {
+    const files = fs.readdirSync(__dirname);
+    const htmlFile = files.find(f => f.endsWith('.html'));
+    if (htmlFile) {
+      return res.sendFile(path.join(__dirname, htmlFile));
+    }
+  } catch (e) {}
 
-  res.status(404).send('File HTML tidak ditemukan di repository GitHub Anda. Pastikan ada file .html yang di-upload!');
+  res.status(404).send('File HTML tidak ditemukan di repository GitHub Anda.');
 });
 
 app.listen(PORT, () => {
