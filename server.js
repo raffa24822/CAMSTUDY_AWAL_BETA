@@ -1,161 +1,46 @@
 const express = require('express');
-const crypto = require('crypto');
-const fs = require('fs');
+const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
+
 const app = express();
-app.disable('x-powered-by');
-app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('X-Frame-Options','DENY');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');next();});
-app.use(express.json({ limit: '12mb', strict: true }));
-const PORT = Number(process.env.PORT || 3000);
-const TEACHER_PASSWORD = 'ADMIN123';
-const teacherSessions = new Map();
-const loginAttempts = new Map();
-const DATA_DIR = path.resolve(process.env.DATA_DIR || __dirname);
-const DB_FILE = path.join(DATA_DIR, 'asts-data.json');
-const ALLOWED = new Set(['ping', 'subjects', 'users', 'results', 'tasks', 'materials', 'submissions']);
-let db = Object.create(null);
-let writeQueue = Promise.resolve();
-try {
-  if (fs.existsSync(DB_FILE)) {
-    const loaded = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-    if (loaded && typeof loaded === 'object' && !Array.isArray(loaded)) db = loaded;
+const PORT = process.env.PORT || 10000;
+
+app.use(cors());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+const DATA_FILE = path.join('/opt/render/project/src', 'asts-data.json');
+
+function loadData() {
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Gagal membaca data file:', e.message);
   }
-} catch (error) {
-  console.error('Database file tidak bisa dibaca:', error.message);
-  process.exit(1);
+  return { banks: [], exambanks: [] };
 }
-function sendError(res, status, message) { return res.status(status).json({ ok: false, error: message }); }
+
+function saveData(data) {
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+  } catch (e) {
+    console.error('Gagal menyimpan data file:', e.message);
+  }
+}
+
+let db = loadData();
+
 function auth(req, res, next) {
-  const bearer = String(req.get('authorization') || '').replace(/^Bearer\s+/i, '');
-  const session = bearer && teacherSessions.get(bearer);
-  if (session && session.expiresAt > Date.now()) { req.teacherSession = session; return next(); }
-  const name = String((req.params && req.params.name) || '');
-  const teacherOnly = req.method !== 'GET' && ['subjects','tasks','materials'].includes(name);
-  const protectedEndpoint = req.path.startsWith('/api/generate-questions') || req.path.includes('/reset-');
-  if ((teacherOnly || protectedEndpoint) && !session) return sendError(res, 403, 'Perlu login guru/admin.');
-  // Data akun, status, nilai, dan pengumpulan boleh disinkronkan oleh siswa tanpa kunci rahasia di browser.
-  if (req.method === 'PUT' && !['ping','users','results','submissions'].includes(name) && !session) return sendError(res, 403, 'Perlu login guru/admin.');
   next();
 }
-app.post('/api/teacher-login', (req, res) => {
-  const ip=String(req.ip||req.socket.remoteAddress||'unknown');const attempts=loginAttempts.get(ip)||{count:0,until:0};if(attempts.until>Date.now())return sendError(res,429,'Terlalu banyak percobaan login. Tunggu 5 menit.');
-  const username = String(req.body && req.body.username || '').trim().slice(0,80);
-  const password = String(req.body && req.body.password || '');
-  const p = Buffer.from(password); const q = Buffer.from(TEACHER_PASSWORD);
-  const samePass = p.length === q.length && crypto.timingSafeEqual(p, q);
-  if (!username || !samePass) { attempts.count++;if(attempts.count>=6){attempts.until=Date.now()+5*60*1000;attempts.count=0;}loginAttempts.set(ip,attempts);return sendError(res, 401, 'Nama pengguna atau password salah.'); }
-  loginAttempts.delete(ip);
-  const token = crypto.randomBytes(32).toString('hex');
-  teacherSessions.set(token, { username, expiresAt: Date.now() + 8 * 60 * 60 * 1000 });
-  res.setHeader('Cache-Control', 'no-store');
-  return res.json({ ok: true, token, expiresIn: 28800, username });
-});
-app.post('/api/teacher-logout', (req, res) => { const token=String(req.get('authorization')||'').replace(/^Bearer\s+/i,''); if(token)teacherSessions.delete(token); res.json({ok:true}); });
-function normalizeName(value) { return String(value || '').trim().toLocaleLowerCase('id-ID'); }
-function resultKey(r) {
-  if (r && r.id) return String(r.id);
-  return [r && r.name, r && r.subject, r && r.date, r && r.time, r && r.score].map(v => String(v == null ? '' : v)).join('|');
+
+function sendError(res, status, message) {
+  return res.status(status).json({ error: message });
 }
-function timeOf(item) { return Number(item && (item.updatedAt || item.timestamp || item.lastSeen) || 0); }
-function mergeRecords(oldList, incomingList, keyFn) {
-  const map = new Map();
-  for (const item of [...(Array.isArray(oldList) ? oldList : []), ...(Array.isArray(incomingList) ? incomingList : [])]) {
-    if (!item || typeof item !== 'object') continue;
-    const key = keyFn(item);
-    if (!key) continue;
-    const previous = map.get(key);
-    if (!previous || timeOf(item) >= timeOf(previous)) map.set(key, item);
-  }
-  return [...map.values()];
-}
-function mergeData(name, incoming) {
-  if (name === 'subjects') return Array.isArray(incoming) ? incoming : [];
-  if (name === 'users') return mergeRecords(db.users && db.users.data, incoming, u => normalizeName(u.name));
-  if (name === 'results') return mergeRecords(db.results && db.results.data, incoming, resultKey);
-  return incoming;
-}
-function persist() {
-  const snapshot = JSON.stringify(db);
-  writeQueue = writeQueue.then(async () => {
-    await fs.promises.mkdir(DATA_DIR, { recursive: true });
-    const tmp = DB_FILE + '.tmp';
-    await fs.promises.writeFile(tmp, snapshot, { encoding: 'utf8', mode: 0o600 });
-    await fs.promises.rename(tmp, DB_FILE);
-  });
-  return writeQueue;
-}
-app.get('/health', (_req, res) => { res.setHeader('Cache-Control','no-store'); res.json({ status: 'ok', service: 'PORTAL_AYO_BELAJAR_FINAL', time: new Date().toISOString() }); });
-app.get('/', (_req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.sendFile(path.join(__dirname, 'PORTAL_AYO_BELAJAR_FINAL.html'));
-});
-app.post('/asts_kelas10/reset-users.json', auth, async (req, res) => {
-  if (!req.body || req.body.confirm !== 'RESET_ALL_STUDENT_ACCOUNTS') {
-    return sendError(res, 400, 'Konfirmasi reset akun tidak valid.');
-  }
-  const resetAt = Date.now();
-  const previousUsers = db.users || {};
-  const previousNames = Array.isArray(previousUsers.data) ? previousUsers.data.map(user => normalizeName(user && user.name)).filter(Boolean) : [];
-  const resetNames = [...new Set([...(Array.isArray(previousUsers.resetNames) ? previousUsers.resetNames.map(normalizeName) : []), ...previousNames])];
-  db.users = { data: [], resetAt, resetNames, updatedAt: resetAt };
-  try {
-    await persist();
-    return res.json({ ok: true, resetAt, message: 'Semua akun siswa berhasil direset.' });
-  } catch (error) {
-    console.error('Gagal menyimpan reset akun:', error.message);
-    return sendError(res, 500, 'Reset akun belum berhasil disimpan. Periksa persistent disk hosting.');
-  }
-});
-app.post('/asts_kelas10/reset-results.json', auth, async (req, res) => {
-  if (!req.body || req.body.confirm !== 'RESET_ALL_RESULTS') return sendError(res, 400, 'Konfirmasi reset nilai tidak valid.');
-  const resetAt = Date.now();
-  db.results = { data: [], resetAt, updatedAt: resetAt };
-  try { await persist(); return res.json({ ok: true, resetAt, message: 'Semua rekap nilai berhasil direset.' }); }
-  catch (error) { console.error('Gagal reset nilai:', error.message); return sendError(res, 500, 'Reset nilai belum tersimpan.'); }
-});
-app.get('/asts_kelas10/:name.json', auth, (req, res) => {
-  const name = req.params.name;
-  if (!ALLOWED.has(name)) return sendError(res, 404, 'Data yang diminta tidak tersedia.');
-  res.setHeader('Cache-Control', 'no-store');
-  return res.json(db[name] === undefined ? null : db[name]);
-});
-app.put('/asts_kelas10/:name.json', auth, async (req, res) => {
-  const name = req.params.name;
-  if (!ALLOWED.has(name)) return sendError(res, 404, 'Data yang diminta tidak tersedia.');
-  const body = req.body;
-  if (!body || typeof body !== 'object' || Array.isArray(body)) return sendError(res, 400, 'Format data tidak valid.');
-  if (name === 'ping') {
-    db.ping = { data: { ok: true }, updatedAt: Date.now() };
-  } else {
-    if (!Array.isArray(body.data)) return sendError(res, 400, 'Field data harus berupa daftar/array.');
-    const previous = db[name] || {};
-    let incomingData = body.data;
-    if (name === 'results' && Number(previous.resetAt || 0) > 0) {
-      const resetAt = Number(previous.resetAt || 0);
-      incomingData = body.data.filter(item => Number(item && item.timestamp || 0) > resetAt);
-    }
-    if (name === 'users' && Number(previous.resetAt || 0) > 0) {
-      const resetAt = Number(previous.resetAt);
-      const resetNames = new Set((Array.isArray(previous.resetNames) ? previous.resetNames : []).map(normalizeName));
-      // Tolak akun lama yang dikirim ulang oleh HP yang belum menerima sinyal reset.
-      // Akun baru dengan nama sama diterima hanya jika createdAt lebih baru dari reset.
-      incomingData = body.data.filter(user => !resetNames.has(normalizeName(user && user.name)) || Number(user && user.createdAt || 0) > resetAt);
-    }
-    db[name] = {
-      data: mergeData(name, incomingData),
-      updatedAt: Date.now(),
-      ...(name === 'users' && previous.resetAt ? { resetAt: previous.resetAt, resetNames: previous.resetNames || [] } : {}),
-      ...(name === 'results' && previous.resetAt ? { resetAt: previous.resetAt } : {})
-    };
-  }
-  try {
-    await persist();
-    return res.json({ ok: true, name, count: name === 'ping' ? 1 : db[name].data.length, updatedAt: Date.now() });
-  } catch (error) {
-    console.error('Gagal menyimpan database:', error.message);
-    return sendError(res, 500, 'Data belum berhasil disimpan. Periksa persistent disk hosting.');
-  }
-});
+
 app.post('/api/generate-questions', auth, async (req, res) => {
   const apiKey = String(process.env.OPENAI_API_KEY || '');
   if (!apiKey) return sendError(res, 503, 'AI belum dikonfigurasi. Admin perlu mengatur OPENAI_API_KEY pada Environment hosting.');
@@ -164,8 +49,9 @@ app.post('/api/generate-questions', auth, async (req, res) => {
   const count = Math.max(1, Math.min(50, Number(req.body && req.body.count) || 10));
   if (material.length < 80) return sendError(res, 400, 'Materi terlalu singkat. Tempel materi yang lebih lengkap.');
   if (material.length > 30000) return sendError(res, 413, 'Materi terlalu panjang. Batas materi adalah 30.000 karakter.');
+
   try {
-   const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -183,9 +69,8 @@ app.post('/api/generate-questions', auth, async (req, res) => {
         response_format: { type: 'json_object' }
       })
     });
-      })
-    });
- const data = await response.json();
+
+    const data = await response.json();
     if (!response.ok) {
       const msg = data && data.error && data.error.message ? data.error.message : 'Penyedia AI tidak dapat membuat soal.';
       console.error('OpenAI API error:', response.status, msg);
@@ -219,17 +104,13 @@ app.post('/api/generate-questions', auth, async (req, res) => {
     return sendError(res, 500, 'Gagal terhubung ke layanan AI.');
   }
 });
-    console.error('Gagal menghubungi layanan AI:', error.message);
-    return sendError(res, 502, 'Tidak dapat menghubungi layanan AI. Periksa koneksi server.');
-  }
+
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
-app.use((error, _req, res, _next) => {
-  if (error && error.type === 'entity.too.large') return sendError(res, 413, 'Data terlalu besar untuk dikirim.');
-  if (error instanceof SyntaxError) return sendError(res, 400, 'JSON tidak valid.');
-  console.error(error);
-  return sendError(res, 500, 'Terjadi kesalahan pada server.');
-});
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`PORTAL BELAJAR KELAS 10 berjalan pada port ${PORT}; data disimpan di ${DB_FILE}`);
-  console.log('Login guru/admin aktif: nama bebas, password tetap ADMIN123.');
+
+app.listen(PORT, () => {
+  console.log(`PORTAL BELAJAR KELAS 10 berjalan pada port ${PORT}; data disimpan di ${DATA_FILE}`);
 });
