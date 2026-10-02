@@ -98,22 +98,34 @@ app.post('/api/generate-questions', auth, async (req, res) => {
   }
 });
 
-// Menyajikan file statis dari folder public maupun root
-app.use(express.static(path.join(__dirname, 'public')));
+// Melayani file statis dari semua folder umum
 app.use(express.static(__dirname));
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'views')));
 
-// Menangani permintaan file index.html
+// Fungsi pencarian otomatis file HTML
 app.get('*', (req, res) => {
-  const publicPath = path.join(__dirname, 'public', 'index.html');
-  const rootPath = path.join(__dirname, 'index.html');
+  const possiblePaths = [
+    path.join(__dirname, 'index.html'),
+    path.join(__dirname, 'public', 'index.html'),
+    path.join(__dirname, 'views', 'index.html'),
+    path.join(__dirname, 'src', 'index.html')
+  ];
 
-  if (fs.existsSync(publicPath)) {
-    res.sendFile(publicPath);
-  } else if (fs.existsSync(rootPath)) {
-    res.sendFile(rootPath);
-  } else {
-    res.status(404).send('File index.html tidak ditemukan pada repository.');
+  for (const filePath of possiblePaths) {
+    if (fs.existsSync(filePath)) {
+      return res.sendFile(filePath);
+    }
   }
+
+  // Jika index.html tidak ketemu, cari file .html apa saja di root
+  const files = fs.readdirSync(__dirname);
+  const htmlFile = files.find(f => f.endsWith('.html'));
+  if (htmlFile) {
+    return res.sendFile(path.join(__dirname, htmlFile));
+  }
+
+  res.status(404).send('File HTML tidak ditemukan di repository GitHub Anda. Pastikan ada file .html yang di-upload!');
 });
 
 app.listen(PORT, () => {
