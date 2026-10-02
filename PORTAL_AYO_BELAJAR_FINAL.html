@@ -1,81 +1,366 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Portal Ayo Belajar - Kelas 10</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body { background-color: #0f172a; color: #f8fafc; font-family: sans-serif; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CAMSTUDY - Portal Ayo Belajar</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        :root {
+            --bg-dark: #090d16;
+            --card-bg: rgba(17, 24, 39, 0.7);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --primary-glow: rgba(59, 130, 246, 0.15);
+        }
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-dark);
+            color: #f3f4f6;
+            background-image: 
+                radial-gradient(circle at 15% 15%, rgba(59, 130, 246, 0.12) 0%, transparent 40%),
+                radial-gradient(circle at 85% 85%, rgba(139, 92, 246, 0.12) 0%, transparent 40%);
+            background-attachment: fixed;
+        }
+        .code-font { font-family: 'JetBrains Mono', monospace; }
+        .glass-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .glass-nav {
+            background: rgba(9, 13, 22, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+        }
+        .glow-effect:hover {
+            box-shadow: 0 0 25px var(--primary-glow);;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+    </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4">
+<body class="min-h-screen flex flex-col custom-scrollbar">
 
-  <div id="loginSection" class="bg-slate-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-slate-700">
-    <h1 class="text-2xl font-bold text-center mb-2 text-cyan-400">Portal Ayo Belajar</h1>
-    <p class="text-sm text-slate-400 text-center mb-6">Asesmen Sumatif Tengah Semester - Kelas 10</p>
-    
-    <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
-      <div>
-        <label class="block text-xs font-semibold uppercase text-slate-300 mb-1">Nama / Username</label>
-        <input type="text" id="usernameInput" required value="admin" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:outline-none focus:border-cyan-500">
-      </div>
-      <div>
-        <label class="block text-xs font-semibold uppercase text-slate-300 mb-1">Password / PIN</label>
-        <input type="password" id="passwordInput" value="admin123" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:outline-none focus:border-cyan-500">
-      </div>
-      <button type="submit" class="w-full bg-cyan-500 hover:bg-cyan-600 font-bold py-3 rounded-lg text-slate-950 transition">
-        Masuk Portal
-      </button>
-    </form>
-  </div>
+    <!-- Header Navigation -->
+    <nav class="glass-nav fixed top-0 left-0 right-0 z-50 px-4 lg:px-8 py-3">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/30">
+                    <i class="fa-solid fa-graduation-cap text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="font-extrabold text-lg tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-slate-400">CAMSTUDY</h1>
+                    <p class="text-[10px] text-slate-400 font-medium tracking-wider uppercase">Portal Ayo Belajar - Kelas X</p>
+                </div>
+            </div>
 
-  <div id="appSection" class="hidden w-full max-w-4xl p-6 bg-slate-800 rounded-2xl border border-slate-700">
-    <div class="flex justify-between items-center mb-6 pb-4 border-b border-slate-700">
-      <div>
-        <h2 class="text-xl font-bold text-cyan-400">Selamat Datang di Portal!</h2>
-        <p class="text-xs text-slate-400" id="userBadge"></p>
-      </div>
-      <button onclick="logout()" class="bg-red-500/20 text-red-400 border border-red-500/50 px-4 py-2 rounded-lg text-sm">
-        Keluar
-      </button>
+            <div id="navUserBadge" class="hidden items-center gap-3 bg-slate-800/80 border border-slate-700/60 px-3.5 py-1.5 rounded-full">
+                <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                <span id="navUserName" class="text-xs font-semibold text-slate-200">User</span>
+                <span id="navUserRole" class="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/30 font-bold uppercase">Siswa</span>
+                <button onclick="logout()" class="text-slate-400 hover:text-red-400 text-xs ml-1 transition">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 pt-24 pb-12 px-4 lg:px-8 max-w-7xl mx-auto w-full">
+
+        <!-- LOGIN / REGISTER VIEW -->
+        <div id="authContainer" class="max-w-md mx-auto mt-6">
+            <div class="glass-card rounded-2xl p-6 lg:p-8 space-y-6">
+                <div class="text-center space-y-2">
+                    <h2 class="text-2xl font-bold text-white">Asesmen Sumatif Tengah Semester</h2>
+                    <p class="text-xs text-slate-400">Silakan masuk menggunakan nama/ID dan kata sandi Anda</p>
+                </div>
+
+                <!-- Auth Tabs -->
+                <div class="flex p-1 bg-slate-900/80 rounded-xl border border-slate-800">
+                    <button id="tabStudent" onclick="switchAuthTab('student')" class="flex-1 py-2 text-xs font-bold rounded-lg transition bg-blue-600 text-white shadow-md">
+                        <i class="fa-solid fa-user-graduate mr-1.5"></i> Portal Siswa
+                    </button>
+                    <button id="tabTeacher" onclick="switchAuthTab('teacher')" class="flex-1 py-2 text-xs font-bold text-slate-400 rounded-lg transition hover:text-white">
+                        <i class="fa-solid fa-chalkboard-user mr-1.5"></i> Portal Guru / Admin
+                    </button>
+                </div>
+
+                <!-- Form Student -->
+                <form id="formStudent" onsubmit="handleStudentLogin(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Nama Lengkap / NISN</label>
+                        <input type="text" id="studentName" required placeholder="Masukkan Nama atau NISN..." class="w-full bg-slate-900/90 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 transition">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">PIN Keamanan (6 Angka)</label>
+                        <input type="password" id="studentPin" placeholder="Default: 123456" class="w-full bg-slate-900/90 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 transition">
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl text-sm transition shadow-lg shadow-blue-600/20 glow-effect">
+                        Masuk Ujian <i class="fa-solid fa-arrow-right ml-1"></i>
+                    </button>
+                </form>
+
+                <!-- Form Teacher -->
+                <form id="formTeacher" onsubmit="handleTeacherLogin(event)" class="space-y-4 hidden">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Nama Pengajar / Username</label>
+                        <input type="text" id="teacherName" required placeholder="Masukkan Nama/Username Guru..." class="w-full bg-slate-900/90 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Kode Akses Pengajar</label>
+                        <input type="password" id="teacherAccessCode" placeholder="Kode Akses..." class="w-full bg-slate-900/90 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">PIN Keamanan</label>
+                        <input type="password" id="teacherPin" placeholder="Default: 123456" class="w-full bg-slate-900/90 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
+                    </div>
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl text-sm transition shadow-lg shadow-indigo-600/20 glow-effect">
+                        Masuk Dashboard Pengajar <i class="fa-solid fa-arrow-right ml-1"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- DASHBOARD VIEW (AFTER LOGIN) -->
+        <div id="dashboardContainer" class="hidden space-y-6">
+            <!-- Top Dashboard Bar -->
+            <div class="glass-card rounded-2xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h2 id="dashWelcome" class="text-xl font-bold text-white">Selamat Datang di Portal Ayo Belajar</h2>
+                    <p class="text-xs text-slate-400 mt-1">Pilih menu di bawah untuk mengelola bank soal atau melakukan pembuatan soal AI.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="openAiModal()" id="btnAiGenerator" class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-lg shadow-indigo-500/20 transition">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Soal AI
+                    </button>
+                </div>
+            </div>
+
+            <!-- Content Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Bank Soal Card -->
+                <div class="glass-card rounded-2xl p-6 space-y-4">
+                    <div class="w-12 h-12 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center text-xl font-bold border border-blue-500/30">
+                        <i class="fa-solid fa-book-bookmark"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-white text-lg">Bank Soal Tersimpan</h3>
+                        <p class="text-xs text-slate-400 mt-1">Akses daftar koleksi bank soal yang sudah dibuat.</p>
+                    </div>
+                    <div id="bankSoalList" class="space-y-2 pt-2 text-xs text-slate-300">
+                        <div class="p-3 bg-slate-900/60 rounded-xl border border-slate-800">Belum ada bank soal tersimpan.</div>
+                    </div>
+                </div>
+
+                <!-- Modul AI Card -->
+                <div class="glass-card rounded-2xl p-6 space-y-4">
+                    <div class="w-12 h-12 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center text-xl font-bold border border-purple-500/30">
+                        <i class="fa-solid fa-robot"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-white text-lg">Pembuat Soal Otomatis</h3>
+                        <p class="text-xs text-slate-400 mt-1">Sistem otomatis pembuat soal berbasis AI dari materi pembelajaran.</p>
+                    </div>
+                    <button onclick="openAiModal()" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold py-2.5 rounded-xl text-slate-200 transition">
+                        Buka Generator Soal AI
+                    </button>
+                </div>
+
+                <!-- Info Ujian Card -->
+                <div class="glass-card rounded-2xl p-6 space-y-4">
+                    <div class="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xl font-bold border border-emerald-500/30">
+                        <i class="fa-solid fa-file-pen"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-white text-lg">Ujian & Asesmen</h3>
+                        <p class="text-xs text-slate-400 mt-1">Latihan soal dan pengerjaan asesmen sumatif online.</p>
+                    </div>
+                    <div class="p-3 bg-slate-900/60 rounded-xl border border-slate-800 text-xs text-slate-400">
+                        Status sistem: <span class="text-emerald-400 font-bold">Siap / Online</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- MODAL AI GENERATOR -->
+    <div id="aiModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+        <div class="glass-card rounded-2xl max-w-2xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-wand-magic-sparkles text-indigo-400"></i>
+                    <h3 class="font-bold text-white text-base">Generate Soal AI - Open AI</h3>
+                </div>
+                <button onclick="closeAiModal()" class="text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Mata Pelajaran</label>
+                    <input type="text" id="aiSubject" placeholder="Contoh: Informatika / Teknik Komputer dan Jaringan" class="w-full bg-slate-900/90 border border-slate-700 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Jumlah Soal</label>
+                    <input type="number" id="aiCount" min="1" max="50" value="10" class="w-full bg-slate-900/90 border border-slate-700 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Materi Sumber (Minimal 80 Karakter)</label>
+                    <textarea id="aiMaterial" rows="6" placeholder="Tempel materi atau rangkuman pembelajaran di sini..." class="w-full bg-slate-900/90 border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-indigo-500 custom-scrollbar"></textarea>
+                </div>
+                <button onclick="processGenerateAi()" id="btnProcessAi" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-lg shadow-indigo-500/20">
+                    Mulai Buat Soal AI
+                </button>
+            </div>
+
+            <!-- AI Result Output -->
+            <div id="aiResultArea" class="hidden space-y-3 pt-4 border-t border-slate-800">
+                <h4 class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                    <i class="fa-solid fa-circle-check"></i> Hasil Soal AI Berhasil Dibuat
+                </h4>
+                <div id="aiQuestionsBox" class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 text-xs text-slate-300 max-h-60 overflow-y-auto custom-scrollbar space-y-3">
+                </div>
+            </div>
+        </div>
     </div>
-    
-    <div class="p-4 bg-slate-900/50 rounded-xl border border-slate-700">
-      <p class="text-emerald-400 font-medium">✓ Login Berhasil (Bypass Mode Active)</p>
-      <p class="text-slate-300 text-sm mt-2">Aplikasi siap digunakan untuk generate soal AI dan bank soal.</p>
-    </div>
-  </div>
 
-  <script>
-    function handleLogin(e) {
-      e.preventDefault();
-      const user = document.getElementById('usernameInput').value || 'User';
-      
-      // BYPASS TOTAL: Langsung lolos tanpa validasi password apapun
-      localStorage.setItem('currentUser', JSON.stringify({ name: user, role: 'admin' }));
-      
-      document.getElementById('loginSection').classList.add('hidden');
-      document.getElementById('appSection').classList.remove('hidden');
-      document.getElementById('userBadge').innerText = 'Logged in as: ' + user;
-    }
+    <!-- SCRIPT APPLICATION LOGIC -->
+    <script>
+        let currentUser = null;
 
-    function logout() {
-      localStorage.removeItem('currentUser');
-      document.getElementById('appSection').classList.add('hidden');
-      document.getElementById('loginSection').classList.remove('hidden');
-    }
+        function switchAuthTab(tab) {
+            const btnStudent = document.getElementById('tabStudent');
+            const btnTeacher = document.getElementById('tabTeacher');
+            const formStudent = document.getElementById('formStudent');
+            const formTeacher = document.getElementById('formTeacher');
 
-    // Auto login jika session ada
-    window.onload = function() {
-      const saved = localStorage.getItem('currentUser');
-      if (saved) {
-        const u = JSON.parse(saved);
-        document.getElementById('loginSection').classList.add('hidden');
-        document.getElementById('appSection').classList.remove('hidden');
-        document.getElementById('userBadge').innerText = 'Logged in as: ' + u.name;
-      }
-    };
-  </script>
+            if (tab === 'student') {
+                btnStudent.className = "flex-1 py-2 text-xs font-bold rounded-lg transition bg-blue-600 text-white shadow-md";
+                btnTeacher.className = "flex-1 py-2 text-xs font-bold text-slate-400 rounded-lg transition hover:text-white";
+                formStudent.classList.remove('hidden');
+                formTeacher.classList.add('hidden');
+            } else {
+                btnTeacher.className = "flex-1 py-2 text-xs font-bold rounded-lg transition bg-indigo-600 text-white shadow-md";
+                btnStudent.className = "flex-1 py-2 text-xs font-bold text-slate-400 rounded-lg transition hover:text-white";
+                formTeacher.classList.remove('hidden');
+                formStudent.classList.add('hidden');
+            }
+        }
+
+        // AKAN SELALU BISA LOGIN / DIPERBOLEHKAN UNTUK SEMUA PASSWORD & PIN
+        function handleStudentLogin(e) {
+            e.preventDefault();
+            const name = document.getElementById('studentName').value.trim();
+            if(!name) return;
+
+            currentUser = { name: name, role: 'siswa' };
+            applySession();
+        }
+
+        function handleTeacherLogin(e) {
+            e.preventDefault();
+            const name = document.getElementById('teacherName').value.trim();
+            if(!name) return;
+
+            currentUser = { name: name, role: 'guru' };
+            applySession();
+        }
+
+        function applySession() {
+            localStorage.setItem('camstudy_session', JSON.stringify(currentUser));
+            document.getElementById('authContainer').classList.add('hidden');
+            document.getElementById('dashboardContainer').classList.remove('hidden');
+            document.getElementById('navUserBadge').classList.remove('hidden');
+            document.getElementById('navUserBadge').classList.add('flex');
+            
+            document.getElementById('navUserName').innerText = currentUser.name;
+            document.getElementById('navUserRole').innerText = currentUser.role;
+            document.getElementById('dashWelcome').innerText = `Selamat Datang, ${currentUser.name}!`;
+        }
+
+        function logout() {
+            localStorage.removeItem('camstudy_session');
+            currentUser = null;
+            document.getElementById('navUserBadge').classList.add('hidden');
+            document.getElementById('navUserBadge').classList.remove('flex');
+            document.getElementById('dashboardContainer').classList.add('hidden');
+            document.getElementById('authContainer').classList.remove('hidden');
+        }
+
+        function openAiModal() {
+            document.getElementById('aiModal').classList.remove('hidden');
+        }
+
+        function closeAiModal() {
+            document.getElementById('aiModal').classList.add('hidden');
+        }
+
+        async function processGenerateAi() {
+            const subject = document.getElementById('aiSubject').value.trim();
+            const count = document.getElementById('aiCount').value;
+            const material = document.getElementById('aiMaterial').value.trim();
+
+            if (material.length < 80) {
+                Swal.fire({ icon: 'warning', title: 'Materi Terlalu Singkat', text: 'Materi minimal 80 karakter.', confirmColor: '#3b82f6' });
+                return;
+            }
+
+            const btn = document.getElementById('btnProcessAi');
+            btn.disabled = true;
+            btn.innerText = 'Memproses Soal AI...';
+
+            try {
+                const res = await fetch('/api/generate-questions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ subject, count, material })
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Gagal generate soal.');
+
+                const resultBox = document.getElementById('aiQuestionsBox');
+                resultBox.innerHTML = '';
+
+                data.questions.forEach((q, idx) => {
+                    const item = document.createElement('div');
+                    item.className = 'p-3 bg-slate-950/60 rounded-lg border border-slate-800 space-y-1';
+                    item.innerHTML = `<p class="font-bold text-white">${idx + 1}. ${q.q}</p>`;
+                    if(q.options && q.options.length) {
+                        item.innerHTML += `<p class="text-[11px] text-slate-400">Pilihan: ${q.options.join(', ')}</p>`;
+                    }
+                    resultBox.appendChild(item);
+                });
+
+                document.getElementById('aiResultArea').classList.remove('hidden');
+                Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Soal berhasil dibuat!', confirmColor: '#10b981' });
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Gagal', text: err.message, confirmColor: '#ef4444' });
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'Mulai Buat Soal AI';
+            }
+        }
+
+        // Auto load session
+        window.onload = function() {
+            const saved = localStorage.getItem('camstudy_session');
+            if (saved) {
+                try {
+                    currentUser = JSON.parse(saved);
+                    applySession();
+                } catch(e){}
+            }
+        };
+    </script>
 </body>
 </html>
