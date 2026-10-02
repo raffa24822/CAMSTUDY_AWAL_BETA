@@ -5,7 +5,6 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Middleware CORS manual
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
@@ -29,8 +28,7 @@ function loadData() {
   } catch (e) {
     console.error('Gagal membaca data file:', e.message);
   }
-  // Data default jika file belum ada/terhapus saat redeploy
-  return { banks: [], exambanks: [], users: [] };
+  return { banks: [], exambanks: [], users: [{ username: 'admin', pass: 'admin' }] };
 }
 
 function saveData(data) {
@@ -43,22 +41,19 @@ function saveData(data) {
 
 let db = loadData();
 
-function auth(req, res, next) {
-  next();
-}
+// Endpoint bypass untuk cek/reset data user
+app.get('/api/users', (req, res) => {
+  res.json({ ok: true, users: db.users || [] });
+});
 
-function sendError(res, status, message) {
-  return res.status(status).json({ error: message });
-}
-
-app.post('/api/generate-questions', auth, async (req, res) => {
+app.post('/api/generate-questions', async (req, res) => {
   const apiKey = String(process.env.OPENAI_API_KEY || '');
-  if (!apiKey) return sendError(res, 503, 'AI belum dikonfigurasi. Admin perlu mengatur OPENAI_API_KEY pada Environment hosting.');
+  if (!apiKey) return res.status(503).json({ error: 'AI belum dikonfigurasi. Atur OPENAI_API_KEY pada Environment.' });
   const material = String(req.body && req.body.material || '').trim();
   const subject = String(req.body && req.body.subject || 'Umum').trim().slice(0, 120);
   const count = Math.max(1, Math.min(50, Number(req.body && req.body.count) || 10));
-  if (material.length < 80) return sendError(res, 400, 'Materi terlalu singkat. Tempel materi yang lebih lengkap.');
-  if (material.length > 30000) return sendError(res, 413, 'Materi terlalu panjang. Batas materi adalah 30.000 karakter.');
+  
+  if (material.length < 80) return res.status(400).json({ error: 'Materi terlalu singkat.' });
 
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -67,39 +62,23 @@ app.post('/api/generate-questions', auth, async (req, res) => {
       body: JSON.stringify({
         model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
         messages: [
-          {
-            role: 'system',
-            content: 'Anda membantu guru SMA/SMK Indonesia membuat soal dalam format JSON hanya dari MATERI SUMBER. KETEPATAN KUNCI ADALAH PRIORITAS UTAMA. Kembalikan JSON valid {"questions":[{"type":"choice|multiple|essay","q":"...","options":[],"answer":null,"answerText":"...","rubric":"...","exp":"..."}]}. Jangan sertakan markdown.'
-          },
-          {
-            role: 'user',
-            content: 'Mata pelajaran: ' + subject + '\nJumlah soal: ' + count + '\n\nMATERI SUMBER:\n' + material
-          }
+          { role: 'system', content: 'Anda membantu guru membuat soal JSON valid {"questions":[{"type":"choice|multiple|essay","q":"...","options":[],"answer":null,"answerText":"...","rubric":"...","exp":"..."}]}.' },
+          { role: 'user', content: 'Mata pelajaran: ' + subject + '\nJumlah: ' + count + '\n\nMATERI:\n' + material }
         ],
         response_format: { type: 'json_object' }
       })
     });
 
     const data = await response.json();
-    if (!response.ok) {
-      const msg = data && data.error && data.error.message ? data.error.message : 'Penyedia AI tidak dapat membuat soal.';
-      console.error('OpenAI API error:', response.status, msg);
-      return sendError(res, response.status === 429 ? 429 : 502, response.status === 429 ? 'Batas penggunaan AI tercapai.' : 'Layanan AI mengalami kendala.');
-    }
-
+    if (!response.ok) return res.status(502).json({ error: 'Gagal dari AI.' });
     const output = data.choices && data.choices[0] && data.choices[0].message ? data.choices[0].message.content : '';
-    let parsed;
-    try { parsed = JSON.parse(output); } catch (_) { return sendError(res, 502, 'Jawaban AI tidak dapat dibaca.'); }
-    if (!parsed || !Array.isArray(parsed.questions)) return sendError(res, 502, 'AI tidak mengembalikan daftar soal.');
-
+    const parsed = JSON.parse(output);
     return res.json({ ok: true, questions: parsed.questions });
   } catch (error) {
-    console.error('Gagal menghubungi layanan AI:', error.message);
-    return sendError(res, 500, 'Gagal terhubung ke layanan AI.');
+    return res.status(500).json({ error: 'Gagal terhubung ke layanan AI.' });
   }
 });
 
-// Serve static files
 app.use(express.static(__dirname));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static(path.join(__dirname, 'views')));
@@ -108,27 +87,22 @@ app.get('*', (req, res) => {
   const possiblePaths = [
     path.join(__dirname, 'index.html'),
     path.join(__dirname, 'public', 'index.html'),
-    path.join(__dirname, 'views', 'index.html'),
-    path.join(__dirname, 'src', 'index.html')
+    path.join(__dirname, 'views', 'index.html')
   ];
 
   for (const filePath of possiblePaths) {
-    if (fs.existsSync(filePath)) {
-      return res.sendFile(filePath);
-    }
+    if (fs.existsSync(filePath)) return res.sendFile(filePath);
   }
 
   try {
     const files = fs.readdirSync(__dirname);
     const htmlFile = files.find(f => f.endsWith('.html'));
-    if (htmlFile) {
-      return res.sendFile(path.join(__dirname, htmlFile));
-    }
+    if (htmlFile) return res.sendFile(path.join(__dirname, htmlFile));
   } catch (e) {}
 
-  res.status(404).send('File HTML tidak ditemukan di repository GitHub Anda.');
+  res.status(404).send('File HTML tidak ditemukan.');
 });
 
 app.listen(PORT, () => {
-  console.log(`PORTAL BELAJAR KELAS 10 berjalan pada port ${PORT}`);
+  console.log(`Server berjalan di port ${PORT}`);
 });
