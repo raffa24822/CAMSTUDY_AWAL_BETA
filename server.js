@@ -21,6 +21,15 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 const DATA_FILE = path.join('/opt/render/project/src', 'asts-data.json');
 
+// Buat data otomatis dengan password admin123
+const defaultData = {
+  banks: [],
+  exambanks: [],
+  users: [
+    { id: 'admin', name: 'Administrator', role: 'admin', pin: 'admin123', accessCode: 'GURU2026' }
+  ]
+};
+
 function loadData() {
   try {
     if (fs.existsSync(DATA_FILE)) {
@@ -29,14 +38,7 @@ function loadData() {
   } catch (e) {
     console.error('Gagal membaca data file:', e.message);
   }
-  // Default data dengan akun admin PIN 123456
-  return { 
-    banks: [], 
-    exambanks: [], 
-    users: [
-      { id: 'admin', name: 'Administrator', role: 'admin', pin: '123456', accessCode: 'GURU2026' }
-    ] 
-  };
+  return defaultData;
 }
 
 function saveData(data) {
@@ -52,13 +54,13 @@ let db = loadData();
 // Endpoint AI Generate Questions
 app.post('/api/generate-questions', async (req, res) => {
   const apiKey = String(process.env.OPENAI_API_KEY || '');
-  if (!apiKey) return res.status(503).json({ error: 'AI belum dikonfigurasi. Atur OPENAI_API_KEY pada Environment hosting.' });
+  if (!apiKey) return res.status(503).json({ error: 'AI belum dikonfigurasi pada Environment.' });
   
   const material = String(req.body && req.body.material || '').trim();
   const subject = String(req.body && req.body.subject || 'Umum').trim().slice(0, 120);
   const count = Math.max(1, Math.min(50, Number(req.body && req.body.count) || 10));
 
-  if (material.length < 80) return res.status(400).json({ error: 'Materi terlalu singkat. Tempel materi yang lebih lengkap.' });
+  if (material.length < 80) return res.status(400).json({ error: 'Materi terlalu singkat.' });
 
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -67,14 +69,8 @@ app.post('/api/generate-questions', async (req, res) => {
       body: JSON.stringify({
         model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
         messages: [
-          {
-            role: 'system',
-            content: 'Anda membantu guru SMA/SMK Indonesia membuat soal dalam format JSON hanya dari MATERI SUMBER. Kembalikan JSON valid {"questions":[{"type":"choice|multiple|essay","q":"...","options":[],"answer":null,"answerText":"...","rubric":"...","exp":"..."}]}. Jangan sertakan markdown.'
-          },
-          {
-            role: 'user',
-            content: 'Mata pelajaran: ' + subject + '\nJumlah soal: ' + count + '\n\nMATERI SUMBER:\n' + material
-          }
+          { role: 'system', content: 'Anda membantu guru membuat soal dalam format JSON valid.' },
+          { role: 'user', content: 'Mata pelajaran: ' + subject + '\nJumlah: ' + count + '\n\nMATERI:\n' + material }
         ],
         response_format: { type: 'json_object' }
       })
@@ -92,33 +88,25 @@ app.post('/api/generate-questions', async (req, res) => {
   }
 });
 
-// Melayani file statis dari root folder
+// Melayani file statis
 app.use(express.static(__dirname));
 
-// Route utama: Mengarahkan langsung ke PORTAL_AYO_BELAJAR_FINAL.html
-app.get('/', (req, res) => {
-  const portalFile = path.join(__dirname, 'PORTAL_AYO_BELAJAR_FINAL.html');
-  if (fs.existsSync(portalFile)) {
-    return res.sendFile(portalFile);
-  }
-  
-  // Fallback jika nama file berbeda
-  const files = fs.readdirSync(__dirname);
-  const htmlFile = files.find(f => f.endsWith('.html'));
-  if (htmlFile) return res.sendFile(path.join(__dirname, htmlFile));
-
-  res.status(404).send('File portal HTML tidak ditemukan.');
-});
-
-// Catch-all route
+// Melayani file portal HTML utama
 app.get('*', (req, res) => {
   const portalFile = path.join(__dirname, 'PORTAL_AYO_BELAJAR_FINAL.html');
   if (fs.existsSync(portalFile)) {
     return res.sendFile(portalFile);
   }
-  res.redirect('/');
+  
+  try {
+    const files = fs.readdirSync(__dirname);
+    const htmlFile = files.find(f => f.endsWith('.html'));
+    if (htmlFile) return res.sendFile(path.join(__dirname, htmlFile));
+  } catch (e) {}
+
+  res.status(404).send('File portal HTML tidak ditemukan.');
 });
 
 app.listen(PORT, () => {
-  console.log(`PORTAL BELAJAR berjalan pada port ${PORT}`);
+  console.log(`Server berjalan di port ${PORT}`);
 });
